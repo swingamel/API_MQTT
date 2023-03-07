@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Exemple de publication MQTT</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#publishForm').submit(function(event) {
+                console.log('Formulaire soumis');
+                console.log($(this).serialize());
+                event.preventDefault();
+
+                const formData = $(this).serialize(); // Récupérer les données du formulaire
+                $.ajax({
+                    url: '/api/publish',
+                    type: 'POST',
+                    data: formData,
+                    success: function(data) {
+                        data =JSON.parse(data);
+                        console.log(data);
+                        $('#messages').append(`<p>${data.message}</p>`); // Afficher le message publié
+                    },
+                    error: function() {
+                        // Afficher l'erreur
+                        $('#messages').append(`<p>Erreur lors de la publication du message</p>`);
+                    }
+                });
+            });
+            // Récupérer les messages publiés
+            $.ajax({
+                url: '/api/messages',
+                type: 'GET',
+                success: function(data) {
+                    data =JSON.parse(data);
+                    console.log(data);
+                    data.forEach(function(message) {
+                        $('#messages').append(`<p>${message}</p>`);
+                    });
+                },
+                error: function() {
+                    console.log('erreur');
+                    // Afficher l'erreur
+                    $('#messages').append(`<p>Erreur lors de la récupération des messages</p>`);
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+<h1>Exemple de publication MQTT</h1>
+<form id="publishForm" method="post">
+    <label for="topic">Topic :</label>
+    <input type="text" id="topic" name="topic"><br>
+    <label for="message">Message :</label>
+    <input type="text" id="message" name="message"><br>
+    <button type="submit">Publier</button>
+</form>
+<div id="messages"></div>
+</body>
+</html>
