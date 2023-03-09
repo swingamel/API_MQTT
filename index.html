@@ -10,8 +10,6 @@
     <input id="topic" autocomplete="off" />&nbsp;&nbsp;
     <label for="value">command</label>&nbsp;&nbsp;
     <input id="value" autocomplete="off" />&nbsp;&nbsp;
-    <label for="password">Password</label>&nbsp;&nbsp;
-    <input id="password" type="password" autocomplete="off" />&nbsp;&nbsp;
     <button>Send</button>
 </form>
 
@@ -26,19 +24,17 @@
     let form = document.getElementById('form');
     let topic = document.getElementById('topic');
     let value = document.getElementById('value');
-    let password = document.getElementById('password');
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        if (topic.value && value.value && password.value) {
-            socket.emit('command', {topic: topic.value, value: value.value, password: password.value});
+        if (topic.value && value.value) {
+            socket.emit('command', JSON.stringify({'topic':topic.value, 'value':value.value}));
         }
     });
 
-    socket.on('message', function(msg) {
+    socket.on('data', function(msg) {
         data.textContent  = msg;
     });
-
     socket.on('last', function(msg) {
         last.textContent  = msg;
     });
