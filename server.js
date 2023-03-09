@@ -1,18 +1,13 @@
+// Import des modules nécessaires
 require('dotenv').config();
 const mqtt = require('mqtt');
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const Joi = require('joi');
-const bcrypt = require('bcrypt');
-const app = express();
+const app = require('express')();
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
+const {check, validationResult} = require('express-validator');
 
-//Création d'une instance de connexion MQTT
-const client = mqtt.connect(process.env.MQTT_URL, {
-    username: process.env.MQTT_USERNAME,
-    password: process.env.MQTT_PASSWORD,
-    rejectUnauthorized: true //activation de la vérification du certificat
-});
+// Création d'une instance de connexion MQTT
+const client = mqtt.connect('mqtt://0.tcp.eu.ngrok.io:15748');
 
 // Initialisation d'un objet vide
 const obj = {};
@@ -21,59 +16,30 @@ const obj = {};
 const port = process.env.PORT || 3000;
 
 // Définition de la route d'accueil qui renvoie le fichier 'index.html'
-
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
 // Ecoute de l'événement 'connection' de Socket.IO
-const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: process.env.FRONTEND_URL,
-        methods: ["GET", "POST"]
-    },
-    allowEIO3: true
-});
-
-//Vérification du mot de passe de l'utilisateur
-const hashPassword = process.env.USER_PASSWORD_HASH;
-const saltRounds = 10;
-const idValidPassword = async (password) => {
-    try {
-        return await bcrypt.compare(password, hashPassword);
-    } catch (error) {
-        console.log(error);
-        return false;
-    }
-};
-
-//Ecoute de l'événement 'connection' de Socket.IO
 io.on('connection', (socket) => {
     // Ecoute de l'événement 'command' envoyé par un client
-    socket.on('command', async (req, res) => {
-        const schema = Joi.object({
-            topic: Joi.string().required(),
-            value: Joi.string().required(),
-            password: Joi.string().required()
-        });
-        const {error} = schema.validate(req);
-        if (error) {
-            return res.status(422).json({errors: error.details});
-        }
-        const validPassword = await idValidPassword(req.password);
-        if (!validPassword) {
-            return res.status(401).json({errors: 'Invalid password'});
+    socket.on('command', [
+        check('topic').notEmpty(), // Vérification du sujet
+        check('value').notEmpty() // Vérification de la valeur
+    ], async (req, res) => { // Utilisation de la fonction asynchrone
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) { // Si les données ne sont pas valides
+            return res.status(422).json({errors: errors.array()}); // On renvoie une erreur
         }
         // Envoi de l'événement 'command' à tous les clients connectés
-        io.emit('command', req);
+        io.emit('command', req.body);
         // Publication du message MQTT
-        client.publish(req.topic, req.value)
+        client.publish(req.body.topic, req.body.value)
     });
 });
 
 // Ecoute du port défini pour les connexions HTTP
-server.listen(port, () => {
+http.listen(port, () => {
     console.log(`Socket.IO server running at http://localhost:${port}/`);
 });
 
@@ -81,7 +47,7 @@ server.listen(port, () => {
 client.on('connect', function () {
     // Abonnement à tous les sujets
     client.subscribe('#')
-});
+})
 
 // Ecoute de l'événement 'message' de la connexion MQTT
 client.on('message', function (topic, message) {
@@ -93,36 +59,37 @@ client.on('message', function (topic, message) {
     let json = JSON.stringify(obj, null, 3);
 
     // Envoi de l'objet JSON à tous les clients connectés
-    io.emit('message', json);
-});
+    io.emit('data', json);
+
+    // Envoi du dernier sujet et message reçus à tous les clients connectés
+    io.emit('last', JSON.stringify([topic, message.toString()]));
+
+})
 
 // Fonction de conversion du sujet et du message en objet JSON
 function convert(arr, obj) {
     const lastIndex = arr.length - 1;
     let currObj = obj;
-    arr.forEach((key, index) => {
-        if (index === lastIndex) {
-            currObj[key] = arr[index + 1];
-        } else {
-            if (!currObj[key]) {
-                currObj[key] = {};
-            }
-            currObj = currObj[key];
-        }
-    });
-}
 
-function convet2(arr, obj) {
-    const lastIndex = arr.length - 1;
-    let currObj = obj;
-    arr.forEach((key, index) => {
-        if (index === lastIndex) {
-            currObj[key] = arr[index + 1];
-        } else {
-            if (!currObj[key]) {
-                currObj[key] = {};
-            }
-            currObj = currObj[key];
+    const elements = arr[0].split('/');
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        // Si l'objet n'existe pas, on le crée
+        if (!currObj[element]) {
+            currObj[element] = {};
         }
-    });
+
+        // On passe à l'objet suivant
+        currObj = currObj[element];
+    }
+
+    // Si l'objet ne contient pas déjà un tableau, on en crée un
+    if (!currObj[lastIndex]) {
+        currObj[lastIndex] = [];
+    }
+
+    // On ajoute la valeur à la fin du tableau
+    currObj[lastIndex].push(arr[lastIndex]);
 }
