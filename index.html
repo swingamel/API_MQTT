@@ -1,60 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <title>Exemple de publication MQTT</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            $('#publishForm').submit(function(event) {
-                console.log('Formulaire soumis');
-                console.log($(this).serialize());
-                event.preventDefault();
-
-                const formData = $(this).serialize(); // Récupérer les données du formulaire
-                $.ajax({
-                    url: '/api/publish',
-                    type: 'POST',
-                    data: formData,
-                    success: function(data) {
-                        data =JSON.parse(data);
-                        console.log(data);
-                        $('#messages').append(`<p>${data.message}</p>`); // Afficher le message publié
-                    },
-                    error: function() {
-                        // Afficher l'erreur
-                        $('#messages').append(`<p>Erreur lors de la publication du message</p>`);
-                    }
-                });
-            });
-            // Récupérer les messages publiés
-            $.ajax({
-                url: '/api/messages',
-                type: 'GET',
-                success: function(data) {
-                    data =JSON.parse(data);
-                    console.log(data);
-                    data.forEach(function(message) {
-                        $('#messages').append(`<p>${message}</p>`);
-                    });
-                },
-                error: function() {
-                    console.log('erreur');
-                    // Afficher l'erreur
-                    $('#messages').append(`<p>Erreur lors de la récupération des messages</p>`);
-                }
-            });
-        });
-    </script>
+    <title>Socket.IO MQTT listen</title>
 </head>
 <body>
-<h1>Exemple de publication MQTT</h1>
-<form id="publishForm" method="post">
-    <label for="topic">Topic :</label>
-    <input type="text" id="topic" name="topic"><br>
-    <label for="message">Message :</label>
-    <input type="text" id="message" name="message"><br>
-    <button type="submit">Publier</button>
+<form id="form" action="">
+    <h3>Send command</h3>
+    <label for="topic">Topic</label>&nbsp;&nbsp;
+    <input id="topic" autocomplete="off" />&nbsp;&nbsp;
+    <label for="value">command</label>&nbsp;&nbsp;
+    <input id="value" autocomplete="off" />&nbsp;&nbsp;
+    <label for="password">Password</label>&nbsp;&nbsp;
+    <input id="password" type="password" autocomplete="off" />&nbsp;&nbsp;
+    <button>Send</button>
 </form>
-<div id="messages"></div>
+
+<h3>MQTT event</h3>
+<div id="last" style="background-color: grey; padding: 10px;width: 100%">Empty</div>
+<pre id="data"></pre>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    const socket = io();
+    let data = document.getElementById('data');
+    let last = document.getElementById('last');
+    let form = document.getElementById('form');
+    let topic = document.getElementById('topic');
+    let value = document.getElementById('value');
+    let password = document.getElementById('password');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (topic.value && value.value && password.value) {
+            socket.emit('command', {topic: topic.value, value: value.value, password: password.value});
+        }
+    });
+
+    socket.on('message', function(msg) {
+        data.textContent  = msg;
+    });
+
+    socket.on('last', function(msg) {
+        last.textContent  = msg;
+    });
+</script>
 </body>
 </html>
